@@ -18,11 +18,9 @@ dependencies {
     testImplementation(platform("org.junit:junit-bom:5.10.0"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
-
-    implementation("com.squareup.retrofit2:retrofit:2.9.0")
-    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
-
-    implementation("io.grpc:grpc-netty:1.68.0")
+    implementation("com.squareup.retrofit2:retrofit:3.0.0")
+    implementation("com.squareup.retrofit2:converter-gson:3.0.0")
+    implementation("io.grpc:grpc-netty-shaded:1.76.0")
     implementation("io.grpc:grpc-protobuf:1.68.0")
     implementation("io.grpc:grpc-stub:1.68.0")
     implementation("javax.annotation:javax.annotation-api:1.3.2")

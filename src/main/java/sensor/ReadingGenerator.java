@@ -1,7 +1,7 @@
 package sensor;
 
 import io.grpc.ManagedChannel;
-import io.grpc.netty.NettyChannelBuilder;
+import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
 import sensor.client.ServerClient;
 import sensor.dto.ReadingDto;
 import sensor.utils.CalibrationUtil;
