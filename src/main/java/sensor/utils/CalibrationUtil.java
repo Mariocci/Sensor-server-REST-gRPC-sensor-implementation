@@ -7,16 +7,16 @@ public class CalibrationUtil {
     public static Map<String, Object> calibrate(Map<String, Object> reading, Map<String, Object> neighbor) {
         Map<String, Object> calibrated = new HashMap<>(reading);
 
-        calibrated.put("temperature", logAverage(reading, neighbor, "temperature"));
-        calibrated.put("humidity", logAverage(reading, neighbor, "humidity"));
-        calibrated.put("pressure", logAverage(reading, neighbor, "pressure"));
+        calibrated.put("Temperature", logAverage(reading, neighbor, "Temperature"));
+        calibrated.put("Humidity", logAverage(reading, neighbor, "Humidity"));
+        calibrated.put("Pressure", logAverage(reading, neighbor, "Pressure"));
+        if (reading.containsKey("CO") && neighbor.containsKey("CO")) {
+            calibrated.put("CO", logAverage(reading, neighbor, "CO"));
+        }
+        if (reading.containsKey("SO2") && neighbor.containsKey("SO2")) {
+            calibrated.put("SO2", logAverage(reading, neighbor, "SO2"));
+        }
 
-        if (reading.containsKey("co") && neighbor.containsKey("co")) {
-            calibrated.put("co", logAverage(reading, neighbor, "co"));
-        }
-        if (reading.containsKey("so2") && neighbor.containsKey("so2")) {
-            calibrated.put("so2", logAverage(reading, neighbor, "so2"));
-        }
         return calibrated;
     }
 

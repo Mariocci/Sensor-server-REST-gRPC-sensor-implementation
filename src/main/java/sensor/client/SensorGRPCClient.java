@@ -4,8 +4,6 @@ import com.google.protobuf.Empty;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.StatusRuntimeException;
-import sensor.grpc.Reading;
-import sensor.grpc.ReadingRequest;
 import sensor.grpc.ReadingResponse;
 import sensor.grpc.SensorServiceGrpc;
 

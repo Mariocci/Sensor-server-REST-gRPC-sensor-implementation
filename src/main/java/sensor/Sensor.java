@@ -62,7 +62,7 @@ public class Sensor {
                         neighbor.getPort());
             }
         } else {
-            System.out.println("Nema susjeda trenutno.");
+            System.out.println("No neighbor found at this moment.");
         }
 
         ReadingGenerator readingGenerator = new ReadingGenerator(
@@ -85,6 +85,7 @@ public class Sensor {
     }
 
     public static void main(String[] args) throws Exception {
+        System.setProperty("io.grpc.netty.shaded.io.netty.transport.noNative", "true");
         double latitude = 45.75 + Math.random() * 0.1;
         double longitude = 15.87 + Math.random() * 0.13;
         int grpcPort = getAvailablePort();

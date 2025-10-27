@@ -1,8 +1,10 @@
 import com.google.protobuf.gradle.id
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
 plugins {
     java
     id("com.google.protobuf") version "0.9.4"
+    id("com.github.johnrengelman.shadow") version "8.1.1"
 }
 
 group = "org.example"
@@ -20,12 +22,13 @@ dependencies {
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
 
-    implementation("io.grpc:grpc-netty-shaded:1.68.0")
+    implementation("io.grpc:grpc-netty:1.68.0")
     implementation("io.grpc:grpc-protobuf:1.68.0")
     implementation("io.grpc:grpc-stub:1.68.0")
     implementation("javax.annotation:javax.annotation-api:1.3.2")
     implementation("com.google.protobuf:protobuf-java:3.25.5")
     compileOnly("jakarta.annotation:jakarta.annotation-api:2.1.1")
+    implementation("io.grpc:grpc-core:1.68.0")
 }
 
 java {
@@ -67,6 +70,7 @@ sourceSets {
 tasks.test {
     useJUnitPlatform()
 }
+
 tasks.jar {
     manifest {
         attributes(
@@ -75,4 +79,18 @@ tasks.jar {
     }
     from(configurations.runtimeClasspath.get().map { if (it.isDirectory) it else zipTree(it) })
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+tasks.withType<ShadowJar> {
+    mergeServiceFiles()
+
+    manifest {
+        attributes(
+            "Main-Class" to "sensor.Sensor",
+            "Implementation-Version" to project.version
+        )
+    }
+
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    archiveBaseName.set("sensor")
+    archiveClassifier.set("all")
 }

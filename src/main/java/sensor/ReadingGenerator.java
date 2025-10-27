@@ -1,18 +1,17 @@
 package sensor;
 
+import io.grpc.ManagedChannel;
+import io.grpc.netty.NettyChannelBuilder;
 import sensor.client.ServerClient;
 import sensor.dto.ReadingDto;
-import sensor.grpc.ReadingResponse;
 import sensor.utils.CalibrationUtil;
 import sensor.utils.CsvReader;
 import sensor.utils.NeighborInfo;
-import io.grpc.ManagedChannel;
-import io.grpc.ManagedChannelBuilder;
-import sensor.grpc.SensorServiceGrpc;
-import sensor.grpc.ReadingResponse;
 import com.google.protobuf.Empty;
+import sensor.grpc.ReadingResponse;
+import sensor.grpc.SensorServiceGrpc;
 
-import java.util.ArrayList;
+import java.net.InetSocketAddress;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,7 +25,8 @@ public class ReadingGenerator {
     private long activeSeconds = 0;
     private Map<String, Object> lastReading;
     private SensorServiceGrpc.SensorServiceBlockingStub neighborClient;
-
+    private int updateNeighborCounter = 0;
+    private final int updateNeighborEvery = 10;
 
     public NeighborInfo getNeighbor() {
         return neighbor;
@@ -70,8 +70,10 @@ public class ReadingGenerator {
         this.csvReadings = CsvReader.readCsv(csvPath);
         this.neighbor = neighbor;
         if (neighbor != null) {
-            ManagedChannel channel = ManagedChannelBuilder
-                    .forAddress(neighbor.getIp(), neighbor.getPort())
+            InetSocketAddress address = new InetSocketAddress("127.0.0.1", neighbor.getPort());
+            
+            ManagedChannel channel = NettyChannelBuilder
+                    .forAddress(address)
                     .usePlaintext()
                     .build();
             neighborClient = SensorServiceGrpc.newBlockingStub(channel);
@@ -80,8 +82,19 @@ public class ReadingGenerator {
 
     public void runLoop() throws Exception {
         while (true) {
-            ReadingResponse neighborReading = neighborClient.getLastReading(Empty.getDefaultInstance());
-            neighbor.setLastReading(convertToMap(neighborReading));
+            updateNeighborCounter++;
+            if (updateNeighborCounter >= updateNeighborEvery) {
+                updateNeighborCounter = 0; // reset
+                refreshNeighbor();
+            }
+            if (neighbor != null && neighborClient != null) {
+                try {
+                    ReadingResponse neighborReading = neighborClient.getLastReading(Empty.getDefaultInstance());
+                    neighbor.setLastReading(convertToMap(neighborReading));
+                } catch (Exception e) {
+                    System.err.println("Failed to get reading from neighbor: " + e.getMessage());
+                }
+            }
             Thread.sleep(1000);
             activeSeconds++;
 
@@ -91,9 +104,17 @@ public class ReadingGenerator {
             lastReading = reading;
 
             if (neighbor != null && neighbor.getLastReading() != null) {
-                reading = CalibrationUtil.calibrate(reading, neighbor.getLastReading());
-            }
+                Map<String, Object> neighborReading = neighbor.getLastReading();
 
+                boolean hasValidNeighborData = neighborReading.values().stream()
+                        .anyMatch(v -> v != null && ((v instanceof Number && ((Number)v).doubleValue() != 0) || v instanceof String));
+
+                if (hasValidNeighborData) {
+                    reading = CalibrationUtil.calibrate(reading, neighborReading);
+                } else {
+                    System.out.println("Skipping calibration because neighbor data is not yet valid.");
+                }
+            }
 
             ReadingDto readingDto = new ReadingDto();
             readingDto.setTemperature(getDouble(reading, "Temperature"));
@@ -103,17 +124,16 @@ public class ReadingGenerator {
             readingDto.setSo2(getDouble(reading, "SO2"));
 
             System.out.println("Sensor " + sensorId + " sending reading: " +
-                    "temp=" + readingDto.getTemperature() +
-                    ", pressure=" + readingDto.getPressure() +
-                    ", humidity=" + readingDto.getHumidity() +
-                    ", co=" + readingDto.getCo() +
-                    ", so2=" + readingDto.getSo2());
+                    "Temp=" + readingDto.getTemperature() +
+                    ", Pressure=" + readingDto.getPressure() +
+                    ", Humidity=" + readingDto.getHumidity() +
+                    ", CO=" + readingDto.getCo() +
+                    ", SO2=" + readingDto.getSo2());
 
             serverClient.sendReading(sensorId, readingDto).execute();
-
         }
-
     }
+
     private double getDouble(Map<String, Object> map, String key) {
         Object value = map.get(key);
         if (value instanceof Number) {
@@ -127,6 +147,7 @@ public class ReadingGenerator {
         }
         return 0.0;
     }
+
     private Map<String, Object> convertToMap(ReadingResponse resp) {
         Map<String, Object> map = new HashMap<>();
         map.put("Temperature", resp.getTemperature());
@@ -135,5 +156,38 @@ public class ReadingGenerator {
         map.put("CO", resp.getCo());
         map.put("SO2", resp.getSo2());
         return map;
+    }
+
+    private void refreshNeighbor() {
+        try {
+            var nearestResponse = serverClient.getNearest(sensorId).execute();
+            if (nearestResponse.isSuccessful() && nearestResponse.body() != null) {
+                Sensor nearestSensor = nearestResponse.body();
+                if (nearestSensor.getId() != sensorId) {
+                    NeighborInfo newNeighbor = new NeighborInfo(
+                            nearestSensor.getId(),
+                            nearestSensor.getIp(),
+                            nearestSensor.getPort()
+                    );
+
+                    if (neighbor == null || neighbor.getId() != newNeighbor.getId()) {
+                        neighbor = newNeighbor;
+                        System.out.printf("Sensor %d updated neighbor: ID=%d, IP=%s, Port=%d%n",
+                                sensorId,
+                                neighbor.getId(),
+                                neighbor.getIp(),
+                                neighbor.getPort());
+
+                        InetSocketAddress address = new InetSocketAddress(neighbor.getIp(), neighbor.getPort());
+                        var channel = NettyChannelBuilder.forAddress(address)
+                                .usePlaintext()
+                                .build();
+                        neighborClient = SensorServiceGrpc.newBlockingStub(channel);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to refresh neighbor: " + e.getMessage());
+        }
     }
 }

@@ -20,8 +20,8 @@ public class CsvReader {
             while ((line = br.readLine()) != null) {
                 String[] values = line.split(",");
                 Map<String, Object> row = new HashMap<>();
-                for (int i = 0; i < headers.length - 1; i++) {
-                    String value = values[i].trim();
+                for (int i = 0; i < headers.length; i++) {
+                    String value = i < values.length ? values[i].trim() : "";
                     if (value.isEmpty()) {
                         row.put(headers[i], 0.0);
                     } else {

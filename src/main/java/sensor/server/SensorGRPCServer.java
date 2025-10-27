@@ -4,11 +4,11 @@ import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.stub.StreamObserver;
 import sensor.grpc.SensorServiceGrpc;
-import sensor.grpc.ReadingRequest;
 import sensor.grpc.ReadingResponse;
 import sensor.ReadingGenerator;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Logger;
 
@@ -56,12 +56,16 @@ public class SensorGRPCServer {
         {
             Map<String, Object> reading = generator.getLastReading();
 
+            if (reading == null) {
+                reading = new HashMap<>();
+            }
+
             ReadingResponse response = ReadingResponse.newBuilder()
-                    .setTemperature((Double) reading.get("Temperature"))
-                    .setPressure((Double) reading.get("Pressure"))
-                    .setHumidity((Double) reading.get("Humidity"))
-                    .setCo(reading.get("CO") != null ? (Double) reading.get("CO") : 0)
-                    .setSo2(reading.get("SO2") != null ? (Double) reading.get("SO2") : 0)
+                    .setTemperature((Double) reading.getOrDefault("Temperature", 0.0))
+                    .setPressure((Double) reading.getOrDefault("Pressure", 0.0))
+                    .setHumidity((Double) reading.getOrDefault("Humidity", 0.0))
+                    .setCo((Double) reading.getOrDefault("CO", 0.0))
+                    .setSo2((Double) reading.getOrDefault("SO2", 0.0))
                     .build();
 
             responseObserver.onNext(response);
