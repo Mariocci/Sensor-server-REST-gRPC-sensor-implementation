@@ -73,6 +73,17 @@ public class Sensor {
         );
         SensorGRPCServer grpcServer = new SensorGRPCServer(port, readingGenerator);
         grpcServer.start();
+
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            System.out.println("Shutting down sensor " + sensorId);
+            try {
+                readingGenerator.stop();
+                grpcServer.stop();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }));
+
         new Thread(() -> {
             try {
                 readingGenerator.runLoop();
@@ -80,6 +91,7 @@ public class Sensor {
                 e.printStackTrace();
             }
         }).start();
+
         grpcServer.blockUntilShutdown();
 
     }

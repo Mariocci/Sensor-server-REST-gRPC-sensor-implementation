@@ -1,20 +1,18 @@
 package sensor;
 
-import io.grpc.ManagedChannel;
-import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
+import sensor.client.SensorGRPCClient;
 import sensor.client.ServerClient;
 import sensor.dto.ReadingDto;
 import sensor.utils.CalibrationUtil;
 import sensor.utils.CsvReader;
 import sensor.utils.NeighborInfo;
-import com.google.protobuf.Empty;
-import sensor.grpc.ReadingResponse;
-import sensor.grpc.SensorServiceGrpc;
 
-import java.net.InetSocketAddress;
+import sensor.grpc.ReadingResponse;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
 
 public class ReadingGenerator {
 
@@ -24,9 +22,10 @@ public class ReadingGenerator {
     private final List<Map<String, Object>> csvReadings;
     private long activeSeconds = 0;
     private Map<String, Object> lastReading;
-    private SensorServiceGrpc.SensorServiceBlockingStub neighborClient;
     private int updateNeighborCounter = 0;
     private final int updateNeighborEvery = 10;
+    private SensorGRPCClient neighborGRPCClient;
+    private volatile boolean running = true;
 
     public NeighborInfo getNeighbor() {
         return neighbor;
@@ -64,32 +63,33 @@ public class ReadingGenerator {
         this.lastReading = lastReading;
     }
 
+    public void stop() {
+        running = false;
+        if (neighborGRPCClient != null) {
+            neighborGRPCClient.shutdown();
+        }
+    }
+
     public ReadingGenerator(ServerClient serverClient, long sensorId, String csvPath, NeighborInfo neighbor) throws Exception {
         this.serverClient = serverClient;
         this.sensorId = sensorId;
         this.csvReadings = CsvReader.readCsv(csvPath);
         this.neighbor = neighbor;
         if (neighbor != null) {
-            InetSocketAddress address = new InetSocketAddress("127.0.0.1", neighbor.getPort());
-            
-            ManagedChannel channel = NettyChannelBuilder
-                    .forAddress(address)
-                    .usePlaintext()
-                    .build();
-            neighborClient = SensorServiceGrpc.newBlockingStub(channel);
+            neighborGRPCClient = new SensorGRPCClient(neighbor.getIp(), neighbor.getPort());
         }
     }
 
     public void runLoop() throws Exception {
-        while (true) {
+        while (running) {
             updateNeighborCounter++;
             if (updateNeighborCounter >= updateNeighborEvery) {
                 updateNeighborCounter = 0; // reset
                 refreshNeighbor();
             }
-            if (neighbor != null && neighborClient != null) {
+            if (neighbor != null && neighborGRPCClient != null) {
                 try {
-                    ReadingResponse neighborReading = neighborClient.getLastReading(Empty.getDefaultInstance());
+                    ReadingResponse neighborReading = neighborGRPCClient.getLastReading();
                     neighbor.setLastReading(convertToMap(neighborReading));
                 } catch (Exception e) {
                     System.err.println("Failed to get reading from neighbor: " + e.getMessage());
@@ -178,11 +178,11 @@ public class ReadingGenerator {
                                 neighbor.getIp(),
                                 neighbor.getPort());
 
-                        InetSocketAddress address = new InetSocketAddress(neighbor.getIp(), neighbor.getPort());
-                        var channel = NettyChannelBuilder.forAddress(address)
-                                .usePlaintext()
-                                .build();
-                        neighborClient = SensorServiceGrpc.newBlockingStub(channel);
+                        if (neighborGRPCClient != null) {
+                            neighborGRPCClient.shutdown();
+                        }
+
+                        neighborGRPCClient = new SensorGRPCClient(neighbor.getIp(), neighbor.getPort());
                     }
                 }
             }
