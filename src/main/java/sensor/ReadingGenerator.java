@@ -84,36 +84,41 @@ public class ReadingGenerator {
         while (running) {
             updateNeighborCounter++;
             if (updateNeighborCounter >= updateNeighborEvery) {
-                updateNeighborCounter = 0; // reset
+                updateNeighborCounter = 0;
                 refreshNeighbor();
             }
+            Map<String, Object> neighborReading = null;
+            boolean neighborAvailable = false;
+
             if (neighbor != null && neighborGRPCClient != null) {
                 try {
-                    ReadingResponse neighborReading = neighborGRPCClient.getLastReading();
-                    neighbor.setLastReading(convertToMap(neighborReading));
+                    ReadingResponse neighborResp = neighborGRPCClient.getLastReading();
+                    Map<String, Object> neighborMap = convertToMap(neighborResp);
+
+                    if (neighborMap != null && neighbor.getId() != sensorId) {
+                        neighbor.setLastReading(neighborMap);
+                        neighborReading = neighborMap;
+                        neighborAvailable = true;
+                    } else {
+                        System.out.println("Skipping calibration: neighbor is self or invalid.");
+                    }
                 } catch (Exception e) {
-                    System.err.println("Failed to get reading from neighbor: " + e.getMessage());
+                    System.err.println("Neighbor unavailable: " + e.getMessage());
                 }
             }
+
             Thread.sleep(1000);
             activeSeconds++;
 
-            int rowIndex = (int)(activeSeconds % csvReadings.size());
+            int rowIndex = (int) (activeSeconds % csvReadings.size());
             Map<String, Object> reading = new HashMap<>(csvReadings.get(rowIndex));
             System.out.println(reading);
             lastReading = reading;
 
-            if (neighbor != null && neighbor.getLastReading() != null) {
-                Map<String, Object> neighborReading = neighbor.getLastReading();
-
-                boolean hasValidNeighborData = neighborReading.values().stream()
-                        .anyMatch(v -> v != null && ((v instanceof Number && ((Number)v).doubleValue() != 0) || v instanceof String));
-
-                if (hasValidNeighborData) {
-                    reading = CalibrationUtil.calibrate(reading, neighborReading);
-                } else {
-                    System.out.println("Skipping calibration because neighbor data is not yet valid.");
-                }
+            if (neighborAvailable && neighborReading != null) {
+                reading = CalibrationUtil.calibrate(reading, neighborReading);
+            } else {
+                System.out.println("Skipping calibration: neighbor data not available.");
             }
 
             ReadingDto readingDto = new ReadingDto();
