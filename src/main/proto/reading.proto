@@ -3,21 +3,10 @@ syntax = "proto3";
 option java_multiple_files = true;
 option java_package = "sensor.grpc";
 option java_outer_classname = "SensorProto";
+
 import "google/protobuf/empty.proto";
 
 package sensor;
-
-message Reading {
-  double temperature = 1;
-  double pressure = 2;
-  double humidity = 3;
-  double co = 4;
-  double so2 = 5;
-}
-
-message ReadingRequest {
-  int64 sensor_id = 1;
-}
 
 message ReadingResponse {
   double temperature = 1;
